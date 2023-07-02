@@ -1,0 +1,42 @@
+Задание 2.1
+Определите топ 5% игроков, которые нанесли больше всего суммарного урона за все сыгранные бои.
+Запрос должен возвращать таблицу вида:
+
+WITH query AS (	
+SELECT account_db_id , SUM(damage) as total_damage,
+	   dense_rank() OVER (ORDER BY sum(damage) DESC) as rank_of_player
+FROM arena_members
+WHERE account_db_id > 0 
+GROUP BY account_db_id
+ORDER BY total_damage desc
+)
+SELECT account_db_id, total_damage
+FROM query
+LIMIT (SELECT ROUND(0.05*rank_of_player) FROM query)
+
+Задание 2.2
+Для каждого игрока из задания 2.1 определите корабль, на котором он нанес больше всего урона за все
+бои. Ограничьте выгрузку 10-ю лучшими результатами. Запрос должен возвращать таблицу вида:
+
+
+t1 AS (
+    SELECT am.account_db_id, gs.item_name, SUM(am.damage) AS total_damage
+    FROM arena_members am
+    JOIN glossary_ships gs ON am.vehicle_type_id = gs.item_cd
+    WHERE am.account_db_id IN (SELECT account_db_id FROM query)
+    GROUP BY am.account_db_id, gs.item_name
+),
+t2 AS (
+    SELECT account_db_id, item_name, total_damage,
+    ROW_NUMBER() OVER (PARTITION BY account_db_id ORDER BY total_damage DESC) AS rn
+    FROM t1
+),
+t3 AS (
+    SELECT account_db_id, MAX(total_damage) AS max_damage
+    FROM t1
+    GROUP BY account_db_id
+)
+SELECT t2.account_db_id, t2.item_name as ship_name, t2.total_damage as dealt_damage
+FROM t2
+JOIN t3 ON t2.account_db_id = t3.account_db_id AND t2.total_damage = t3.max_damage
+LIMIT 10
